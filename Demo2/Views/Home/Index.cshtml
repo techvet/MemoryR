@@ -1,0 +1,118 @@
+﻿@{
+    ViewBag.Title = "Game";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@section head
+{
+    <link href="~/Content/cardflip.css" rel="stylesheet" />
+    <script src="~/Scripts/handlebars-v1.3.0.js"></script>
+    <script src="~/Scripts/jquery.signalR-1.0.0.js"></script>
+    <script src="~/signalr/hubs"></script>
+}
+
+<style>
+    .list-inline li {
+        padding-left: 2px;
+        padding-right: 2px;
+        padding-bottom: 6px;
+    }
+</style>
+    
+<div class="container">
+    <div class="row">
+        <div class="col-lg-2">
+            <div style ="padding: 2px">
+                <h3 id="name">User</h3>
+                <input type="text" id="userNameTb" class="form-control"/>
+                <span class="help-block" id="alert">Please enter your name and click <strong>join</strong> to be playing a match</span>
+                <input type="button" id="join" value="join" class="btn btn-primary"/>
+                <h3>Matches</h3>
+                <ul id="wins" class="list-inline">
+                    
+                </ul>
+            </div>
+        </div>
+        <div class="col-lg-10" id="board"></div>
+    </div>
+</div>
+
+<script id="card-template" type="text/x-handlebars-template">
+    <div class="row">
+    {{#each Pieces}}
+    <div id="{{Name}}" class="click panel col-lg-2">
+        <div class="front">
+            <img src="{{Image}}" width="150" height="150" style="opacity: .125;" >
+        </div>
+        <div class="back">
+            <img src="{{Image}}" width="150" height="150">
+        </div>c
+    </div>
+        {{#endRow @@index}}
+            </div>
+            <div class="row">
+        {{/endRow}}
+    {{/each}}
+    </div>
+</script>
+
+<script type="text/javascript">
+    $(function() {
+
+        $('#join').attr('disabled', 'disabled');
+
+        var gameHub = $.connection.gameHub;
+
+        $.connection.hub.start().done(function() {
+            $('#join').removeAttr('disabled');
+        });
+
+        $('#join').click(function() {
+            var uName = $('#userNameTb').val();
+            gameHub.server.join(uName);
+        });
+
+        var userId;
+        gameHub.client.playerJoined = function(user) {
+            userId = user.Id;
+            $('#userNameTb').attr('disabled', 'disabled');
+            $('#join').attr('disabled', 'disabled');
+        };
+
+        Handlebars.registerHelper('endRow', function(conditional, options) {
+            if ((conditional + 1) % 5 == 0 && conditional > 0) {
+                return options.fn(this);
+            }
+            return "";
+        });
+
+        gameHub.client.buildBoard = function(game) {
+            // compile our template
+            var template = Handlebars.compile($("#card-template").html());
+            //render the board
+            $('#board').html(template(game.Board));
+
+            if (userId == game.WhosTurn) {
+                $('#alert').html("Let's begin the game. You get to go first!");
+            } else {
+                $('#alert').html("Let's begin the game. Your opponent gets to go first!");
+            }
+
+            $('div[id^=card-]').click(function(e) {
+                e.preventDefault();
+                
+                var id = this.id;
+                var card = $('#' + id);
+
+                if (!card.hasClass('match') && !card.hasClass('flip')) {
+                    gameHub.server.checkCard(id);
+                }
+            });
+        };
+
+        gameHub.client.waitingList = function() {
+            //compile our template
+            $('#alert').html("At this time there is not an opponent. As soon as one joins your game will begin");
+        };
+    });
+</script>
